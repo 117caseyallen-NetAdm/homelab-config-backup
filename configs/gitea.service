@@ -1,0 +1,28 @@
+# /etc/systemd/system/gitea.service on CA-GIT-LAB
+#
+# Gitea is a single static Go binary at /usr/local/bin/gitea. It runs as the
+# `git` user, whose ~/.ssh/authorized_keys Gitea manages itself: every deploy
+# key is written with a forced command (`command="gitea ... serv key-N"`) plus
+# no-pty,restrict, which is why a key with SSH access to this box cannot get a
+# shell — sshd runs only what the forced command says.
+#
+# /etc/gitea is 770 root:git during web setup so the installer can write
+# app.ini, then tightened to 750 / app.ini 640 so the running service cannot
+# rewrite its own configuration.
+
+[Unit]
+Description=Gitea
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=git
+Group=git
+WorkingDirectory=/var/lib/gitea/
+ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
+Restart=always
+Environment=USER=git HOME=/home/git GITEA_WORK_DIR=/var/lib/gitea
+
+[Install]
+WantedBy=multi-user.target

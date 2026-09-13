@@ -1,0 +1,85 @@
+# Oxidized configuration — sanitized example
+#
+# Lives at /opt/oxidized/.config/oxidized/config on CA-OXI-LAB, mode 0600,
+# owned by the `oxidized` service user. The real file holds the device
+# credential in plaintext and is never committed anywhere.
+#
+# Oxidized 0.37.0 / Ruby 3.1 / Debian 12.
+---
+username: CHANGEME
+password: CHANGEME
+model: ios
+interval: 3600          # seconds. Commits happen only on change, so a short
+                        # interval adds detection speed, not noise.
+use_syslog: false
+debug: false            # true resolves and LOGS every node key, password
+                        # included. Never leave it on.
+threads: 4
+timeout: 30
+retries: 3
+prompt: !ruby/regexp /^([\w.@-]+[#>]\s?)$/
+
+vars:
+  remove_secret: true   # per-model regex redaction of password 7, SNMP
+                        # communities, etc. A convenience, not a guarantee.
+
+input:
+  default: ssh
+  debug: false          # true writes full session transcripts to
+                        # ~/.config/oxidized/logs/ — useful while diagnosing
+  ssh:
+    secure: false       # disables host-key verification. Acceptable on an
+                        # isolated management VLAN; pre-populate known_hosts
+                        # instead in production.
+
+output:
+  default: git
+  git:
+    user: oxidized
+    email: oxidized@casey.corp
+    repo: "/opt/oxidized/configs.git"
+    # NOTE: remote_repo is NOT an output key. Setting it here does nothing.
+    # Pushing is done by the hook below.
+
+source:
+  default: csv
+  csv:
+    file: /opt/oxidized/.config/oxidized/router.db
+    delimiter: !ruby/regexp /:/
+    map:
+      name: 0
+      model: 1
+      ip: 2
+
+models:
+  eos:
+    vars:
+      # Arista EOS lands in unprivileged mode; the model needs enable to reach
+      # `show running-config`. Must be a real YAML boolean — the model tests
+      # is_a?(TrueClass), so a string from the CSV source would not match.
+      enable: true
+      # EOS offers keyboard-interactive but NOT the `password` auth method.
+      # Oxidized's default list is [none, publickey, password], which fails
+      # with AuthenticationFailed before ever reaching a prompt.
+      auth_methods: [none, publickey, password, keyboard-interactive]
+
+extensions:
+  oxidized-web:
+    listen: 0.0.0.0     # NO AUTHENTICATION. Tolerable only because the
+                        # management VLAN is already restricted to the
+                        # jumpboxes. Never expose on a general-purpose VLAN.
+    port: 8888
+
+hooks:
+  push_to_gitea:
+    type: exec
+    events: [post_store]      # fires only when a config actually changed
+    cmd: 'git -C /opt/oxidized/configs.git push origin master'
+    async: false
+    timeout: 120
+    # Uses the git binary and the oxidized user's ~/.ssh/id_ed25519, which is
+    # registered in Gitea as a write-enabled deploy key scoped to one repo.
+    # The built-in `githubrepo` hook was not used: it pushes through
+    # rugged/libgit2, which was compiled without SSH transport, and rebuilding
+    # it with --with-ssh failed at link time and broke the git output. See
+    # docs/troubleshooting.md.

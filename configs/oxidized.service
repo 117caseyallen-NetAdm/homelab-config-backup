@@ -1,0 +1,29 @@
+# /etc/systemd/system/oxidized.service on CA-OXI-LAB
+#
+# Three lines do the real work:
+#   User=          runs as the dedicated service account regardless of who
+#                  started it
+#   Environment=   Oxidized resolves its config path from $HOME, and systemd
+#                  does not set HOME reliably. Without this line the service
+#                  reads /root/.config/oxidized — the exact failure hit when
+#                  running the binary as root by hand.
+#   ExecStart=     absolute path. systemd never inherits a shell's PATH, and
+#                  /usr/local/bin is not on the minimal PATH inside `pct enter`
+#                  either.
+
+[Unit]
+Description=Oxidized network device configuration backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=oxidized
+Group=oxidized
+Environment=HOME=/opt/oxidized
+ExecStart=/usr/local/bin/oxidized
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+# Oxidized device source — CSV, colon-delimited: name:model:ip
+# Lives at /opt/oxidized/.config/oxidized/router.db on CA-OXI-LAB.
+#
+# No per-device algorithm columns. All six devices — including the 2003
+# Catalyst 2940 that offers only diffie-hellman-group1-sha1 — negotiate with
+# net-ssh's defaults. The legacy-crypto overrides needed for interactive
+# OpenSSH are an OpenSSH client policy, not a device limitation.
+#
+# Per-model settings (Arista enable / auth_methods) live in the `models:`
+# block of the main config, not here, so that booleans stay booleans.
+3560CG-1:ios:10.99.10.1
+3560CG-2:ios:10.99.20.1
+C2940-LAB:ios:10.99.20.20
+ARISTA710P-LAB:eos:10.99.10.14
+SRX345-LAB:junos:10.99.0.2
+PA440-LAB:panos:10.99.0.1
