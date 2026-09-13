@@ -1,0 +1,28 @@
+# Never commit key material, credentials, or live configs
+*.key
+*.pem
+*.pfx
+*.p12
+id_*
+!id_*.pub.example
+*.conf
+!*.conf.example
+
+# The real Oxidized files — only the .example versions belong here
+config
+router.db
+app.ini
+*.yml
+!*.example.yml
+
+# Anything that came off a device is a running config with secrets in it.
+# It goes to the private Gitea repo, never here.
+configs.git/
+*-live.*
+*.bak
+*.bak-*
+
+# Windows / editor noise
+Thumbs.db
+desktop.ini
+*~
