@@ -217,10 +217,11 @@ commit, with no human action.
 ## 10. Time
 
 Every device was free-running. Oxidized timestamps commits in UTC; correlating
-one against a device's own log requires the clocks to agree. Five of the six now
-sync to the domain's PDC emulator, which follows four external peers; the sixth,
-the PA-440, sources service traffic from an uncabled MGT port and needs a service
-route. Devices set to UTC. What to look for in `show ntp associations` is
+one against a device's own log requires the clocks to agree. All six now sync to
+the domain's PDC emulator, which follows four external peers. The PA-440 took an
+hour longer than the rest: PAN-OS sources service traffic from its MGT port
+rather than the dataplane, and that port was uncabled — it is now on VLAN 99 at
+`10.99.20.2`. Devices set to UTC. What to look for in `show ntp associations` is
 the `*` — the peer the system **selected**, not merely configured — and `reach`
 climbing to `377`, octal for eight consecutive good polls. Captured output in
 the hub's
