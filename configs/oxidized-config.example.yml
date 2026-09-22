@@ -1,13 +1,14 @@
 # Oxidized configuration — sanitized example
 #
 # Lives at /opt/oxidized/.config/oxidized/config on CA-OXI-LAB, mode 0600,
-# owned by the `oxidized` service user. The real file holds the device
-# credential in plaintext and is never committed anywhere.
+# owned by the `oxidized` service user. Never committed anywhere.
 #
 # Oxidized 0.37.0 / Ruby 3.1 / Debian 12.
 ---
-username: CHANGEME
-password: CHANGEME
+# No global username/password. Credentials are per node, in router.db, and
+# every node uses the read-only TACACS+ service account. The global pair that
+# used to sit here was the fleet admin password — deleted once no node needed
+# it, and only after confirming all six still backed up without it.
 model: ios
 interval: 3600          # seconds. Commits happen only on change, so a short
                         # interval adds detection speed, not noise.
@@ -15,7 +16,10 @@ use_syslog: false
 debug: false            # true resolves and LOGS every node key, password
                         # included. Never leave it on.
 threads: 4
-timeout: 30
+timeout: 600            # was 30. The PA-440's `show config running` includes
+                        # the whole App-ID catalogue and takes 39-50 s; at 30 it
+                        # failed silently, retried, and gave up. A stopgap —
+                        # it means a real failure takes 10 minutes to report.
 retries: 3
 prompt: !ruby/regexp /^([\w.@-]+[#>]\s?)$/
 
@@ -50,6 +54,8 @@ source:
       name: 0
       model: 1
       ip: 2
+      username: 3
+      password: 4
 
 models:
   eos:
@@ -65,9 +71,11 @@ models:
 
 extensions:
   oxidized-web:
-    listen: 0.0.0.0     # NO AUTHENTICATION. Tolerable only because the
-                        # management VLAN is already restricted to the
-                        # jumpboxes. Never expose on a general-purpose VLAN.
+    load: true          # newer oxidized-web needs this; without it the gem is
+                        # installed, configured, and silently never starts
+    listen: 127.0.0.1   # NO AUTHENTICATION, and it serves every device config.
+                        # Was 0.0.0.0; local-only still lets a monitoring agent
+                        # on this host poll /nodes.json for status and duration.
     port: 8888
 
 hooks:
@@ -76,7 +84,8 @@ hooks:
     events: [post_store]      # fires only when a config actually changed
     cmd: 'git -C /opt/oxidized/configs.git push origin master'
     async: false
-    timeout: 120
+    timeout: 120        # governs the git push, NOT SSH to devices — the one
+                        # that matters for slow devices is the top-level key
     # Uses the git binary and the oxidized user's ~/.ssh/id_ed25519, which is
     # registered in Gitea as a write-enabled deploy key scoped to one repo.
     # The built-in `githubrepo` hook was not used: it pushes through

@@ -1,5 +1,13 @@
-# Oxidized device source — CSV, colon-delimited: name:model:ip
-# Lives at /opt/oxidized/.config/oxidized/router.db on CA-OXI-LAB.
+# Oxidized device source — CSV, colon-delimited: name:model:ip:username:password
+# Lives at /opt/oxidized/.config/oxidized/router.db on CA-OXI-LAB, mode 0600.
+#
+# Per-node credentials. Originally three fields, with one global admin
+# credential in the main config. When the fleet moved to TACACS+, that global
+# credential broke each device as it was converted — so every device got its own
+# entry, and moved to the read-only service account as it was converted. Once
+# all six had moved, the global fallback was deleted from the main config.
+#
+# The map for these columns is in the `source:` block of the main config.
 #
 # No per-device algorithm columns. All six devices — including the 2003
 # Catalyst 2940 that offers only diffie-hellman-group1-sha1 — negotiate with
@@ -8,9 +16,9 @@
 #
 # Per-model settings (Arista enable / auth_methods) live in the `models:`
 # block of the main config, not here, so that booleans stay booleans.
-3560CG-1:ios:10.99.10.1
-3560CG-2:ios:10.99.20.1
-C2940-LAB:ios:10.99.20.20
-ARISTA710P-LAB:eos:10.99.10.14
-SRX345-LAB:junos:10.99.0.2
-PA440-LAB:panos:10.99.0.1
+3560CG-1:ios:10.99.10.1:svc-oxidized:<SERVICE_ACCOUNT_PASSWORD>
+3560CG-2:ios:10.99.20.1:svc-oxidized:<SERVICE_ACCOUNT_PASSWORD>
+C2940-LAB:ios:10.99.20.20:svc-oxidized:<SERVICE_ACCOUNT_PASSWORD>
+ARISTA710P-LAB:eos:10.99.10.14:svc-oxidized:<SERVICE_ACCOUNT_PASSWORD>
+SRX345-LAB:junos:10.99.0.2:svc-oxidized:<SERVICE_ACCOUNT_PASSWORD>
+PA440-LAB:panos:10.99.0.1:svc-oxidized:<SERVICE_ACCOUNT_PASSWORD>

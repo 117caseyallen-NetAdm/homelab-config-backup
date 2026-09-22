@@ -227,12 +227,36 @@ climbing to `377`, octal for eight consecutive good polls. Captured output in
 the hub's
 [verification.md](https://github.com/117caseyallen-NetAdm/casey-lab/blob/main/docs/verification.md#6-one-time-hierarchy-across-the-fabric).
 
+## 11. A read-only service account, via TACACS+
+
+Built as part of [homelab-tacacs-aaa](https://github.com/117caseyallen-NetAdm/homelab-tacacs-aaa).
+`svc-oxidized` is an AD account in the `NetOps` group, which the TACACS+ server
+maps to a read-only profile on every vendor. `router.db` went from three fields to
+five, and each device moved to the service account as it was converted.
+
+**Check:** the global credential deleted from the config, Oxidized restarted,
+and every node reporting through the REST API:
+
+```
+3560CG-1           success       7.5s
+3560CG-2           success       8.2s
+C2940-LAB          success       6.1s
+ARISTA710P-LAB     success       3.1s
+SRX345-LAB         success      13.4s
+PA440-LAB          success      50.1s
+```
+
+Deleting the fallback first is the point. While it existed, a node with a broken
+entry would silently have used it.
+
 ## Open
 
-- **Per-device read-only service account.** Oxidized currently authenticates
-  with the fleet admin credential, held in a `0600` file. It needs exactly one
-  capability — read the running config. TACACS+ with command authorization is
-  the real answer; a local read-only user is the interim one.
-- **`post_store` → syslog.** Same hook mechanism, pointed at a log collector,
-  turns "the config on X changed" into a push notification.
+- ~~**Per-device read-only service account.**~~ Done — stage 11.
+- **Backup freshness and duration alerting.** `/nodes.json` has both. Treat
+  `status: never` as unknown rather than failed: status is held in memory and
+  resets on every restart.
+- **A scoped PAN-OS collection command**, so the PA-440 backs up its own config
+  rather than the vendor's App-ID catalogue, and the timeout can come back down.
+- **`post_store` → syslog.** Same hook mechanism, pointed at the log collector
+  that now exists on CA-TAC-LAB, turns "the config on X changed" into an event.
 - **NetBox as the device source** once NetBox exists, replacing `router.db`.

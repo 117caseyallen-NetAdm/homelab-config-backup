@@ -16,6 +16,10 @@ is [pushing to Gitea](#pushing-to-gitea-four-dead-ends).
 4. [Pushing to Gitea: four dead ends](#pushing-to-gitea-four-dead-ends)
 5. [Secrets in the git history](#secrets-in-the-git-history)
 6. [The legacy-crypto wall that wasn't there](#the-legacy-crypto-wall-that-wasnt-there)
+7. [After TACACS+: the login that broke first](#after-tacacs-the-login-that-broke-first)
+8. [A Junos backup that succeeded with nothing in it](#a-junos-backup-that-succeeded-with-nothing-in-it)
+9. [The PA-440: three retries, then silence](#the-pa-440-three-retries-then-silence)
+10. [Two redaction gaps in the bundled models](#two-redaction-gaps-in-the-bundled-models)
 
 ---
 
@@ -115,6 +119,10 @@ The structural issue is that the credential in that file is the fleet-wide admin
 password. Oxidized needs exactly one capability: read the running config. A
 per-device read-only service account shrinks the blast radius; TACACS+ with
 command authorization is the proper version.
+
+*Update:* done. It now runs as a read-only TACACS+ service account, and the
+fleet admin password is gone from its config — see
+[the TACACS+ entries below](#after-tacacs-the-login-that-broke-first).
 
 ---
 
@@ -329,3 +337,104 @@ network; the only variable was which client was imposing the policy.
 
 NAPALM and Nornir use Paramiko, which has its own algorithm policy and will need
 its own test.
+
+---
+
+## After TACACS+: the login that broke first
+
+Converting the first switch to TACACS+ broke its backup within the hour.
+Oxidized was logging in as the local admin account, and on IOS the method list
+`group TAC-GROUP local` only falls back to `local` when the server is
+*unreachable*. A server that answers "no" is final, so a local account the
+server has never heard of can't log in over SSH while the server is healthy.
+
+Visible from both ends, with the backup host's address in the server's log:
+
+```text
+CA-OXI-LAB:  Net::SSH::AuthenticationFailed … @10.99.20.1
+CA-TAC-LAB:  10.99.20.1  …  tty1  10.99.20.30  shell login failed
+```
+
+The fix wasn't on the switch. The credential was **global**, so the next five
+conversions would each have broken another device's backup. `router.db` went to
+five fields, with a credential per node, and each device moved to the read-only
+service account as it was converted. The global pair was deleted last, and only
+after all six had backed up without it.
+
+---
+
+## A Junos backup that succeeded with nothing in it
+
+With the service account mapped to the SRX's stock `read-only` login class, the
+next backup committed and pushed **33 lines**: hierarchy headers with almost
+nothing underneath. The admin account's backup had been 625 lines.
+
+Junos gates what you can see on permission bits. `read-only` has `view` but not
+`view-configuration`, so the account could confirm each hierarchy existed and
+see nothing inside it. Oxidized had no way to know that, so it reported success.
+
+A custom class fixed it, and chose what to leave out as carefully as what to
+put in:
+
+```text
+set system login class netops-ro permissions [ view view-configuration ]
+```
+
+No `secret` bit, so Junos itself replaces every encrypted value with
+`## SECRET-DATA`. That's a redaction done by a permission bit, which fails
+closed, instead of a regex, which fails open. Result: 654 lines, five
+`SECRET-DATA` markers, nothing unredacted.
+
+This was worse than a loud failure: it would have been found during a restore.
+
+---
+
+## The PA-440: three retries, then silence
+
+```text
+W 10.99.0.1 raised Timeout::Error with msg "execution expired"
+W /PA440-LAB status no_connection, retry attempt 1
+W /PA440-LAB status no_connection, retry attempt 2
+W /PA440-LAB status no_connection, retry attempt 3
+W /PA440-LAB status no_connection, retries exhausted, giving up
+```
+
+Authentication succeeded every time; the firewall's own log showed the service
+account logging in via CLI, which also settled that the `panos` model uses SSH,
+not the XML API. The job was timing out *after* login.
+
+The model runs `show config running`, and on PAN-OS that includes the entire
+predefined App-ID catalogue — about 70,000 lines. It takes 39 to 50 seconds. The
+top-level `timeout:` was 30.
+
+Two traps on the way to that:
+
+- **The first `timeout:` changed was the wrong one.** There's also one under
+  `hooks:`, and it governs the git push. The 40-second spacing between retries
+  had been showing the real value, 30, all along.
+- **Git history looked fine.** Six commits for the device, all stale, and
+  nothing reported the failure. It turned up only because the firewall's syslog
+  was being forwarded for an unrelated reason and the login pattern looked odd.
+
+`timeout: 600` is a stopgap. The fix is to collect the local configuration
+rather than the vendor's catalogue.
+
+---
+
+## Two redaction gaps in the bundled models
+
+`remove_secret: true` is a per-model denylist, and moving to TACACS+ put new
+kinds of line into the configs. Two got through:
+
+- **The Arista's TACACS+ key.** The `eos` model redacts
+  `tacacs-server key 7 …`, but EOS puts the key on the host line:
+  `tacacs-server host 10.99.20.32 timeout 5 key 7 …`. The `ios` model has
+  always had the general pattern, `^(tacacs-server (.+ )?key) .+`. Copying that
+  one line into an `eos.rb` override fixed it.
+- **The PA-440's chassis serial.** The `panos` model strips eight version fields
+  from `show system info` and leaves `serial:`.
+
+Both overrides, and how to install them so they survive a gem upgrade, are in
+[homelab-tacacs-aaa](https://github.com/117caseyallen-NetAdm/homelab-tacacs-aaa/tree/main/configs/oxidized-model-overrides).
+Neither leak left the private Gitea server, and this is why that server stays
+private.
