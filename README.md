@@ -146,6 +146,14 @@ change from reaching a device. Inverting that — Batfish validating a proposed
 change before deployment — is the NetDevOps item on the
 [hub roadmap](https://github.com/117caseyallen-NetAdm/casey-lab#roadmap).
 
+It has since become the independent witness for the lab's automation. The
+[Ansible pipeline](https://github.com/117caseyallen-NetAdm/homelab-network-automation)
+knows nothing about this tool and this tool knows nothing about it, yet every
+change the pipeline made appeared here on the next poll, in each device's own
+syntax — `logging host 10.99.20.32` on the 3560s and the Arista,
+`logging 10.99.20.32` on the 2003 switch.
+[Evidence](https://github.com/117caseyallen-NetAdm/homelab-network-automation/blob/main/docs/verification.md#8-the-backup-system-saw-every-change).
+
 **Next:** alerting on backup age and duration from the REST API, a scoped
 PAN-OS collection command, a `post_store` hook to syslog for change alerts, and
 NetBox as the device source. ~~A per-device read-only service account~~ — done,

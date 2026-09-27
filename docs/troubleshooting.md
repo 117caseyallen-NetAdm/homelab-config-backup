@@ -20,6 +20,7 @@ is [pushing to Gitea](#pushing-to-gitea-four-dead-ends).
 8. [A Junos backup that succeeded with nothing in it](#a-junos-backup-that-succeeded-with-nothing-in-it)
 9. [The PA-440: three retries, then silence](#the-pa-440-three-retries-then-silence)
 10. [Two redaction gaps in the bundled models](#two-redaction-gaps-in-the-bundled-models)
+11. [Commits with no configuration change](#commits-with-no-configuration-change)
 
 ---
 
@@ -438,3 +439,44 @@ Both overrides, and how to install them so they survive a gem upgrade, are in
 [homelab-tacacs-aaa](https://github.com/117caseyallen-NetAdm/homelab-tacacs-aaa/tree/main/configs/oxidized-model-overrides).
 Neither leak left the private Gitea server, and this is why that server stays
 private.
+
+---
+
+## Commits with no configuration change
+
+The C2940 has more commits in the backup history than any other device, and
+two of them changed nothing but header lines:
+
+```text
+update /C2940-LAB
+-! NVRAM config last updated at 15:43:51 UTC Sat Sep 26 2026 by casey
++! NVRAM config last updated at 17:05:44 UTC Sat Sep 26 2026 by casey
+
+update /C2940-LAB
+-! Last configuration change at 16:53:18 UTC Sat Sep 26 2026 by svc-ansible-rw
++! Last configuration change at 06:10:24 UTC Sun Sep 27 2026 by casey
+```
+
+The first is a `write memory` with nothing new to save. The second came from a
+session that entered configuration mode only to ask the parser a question
+(`logging ?`) and left: nothing changed, but leaving configuration mode moved
+IOS's "last configuration change" stamp anyway.
+
+It isn't clock drift — the bundled `ios` model already strips
+`ntp clock-period`. It's deliberate. The model keeps
+`! Last configuration change` **only when it names a user**, as a record of who
+touched the device and when:
+
+```ruby
+# Only store the line "configuration change" when a user is specified
+/^! (Last|No) configuration change (at|since)(?!.*\d+ by \S+$)/
+```
+
+That record has already been useful: after the lab's automation reconfigured
+the C2940, the backup named the automation's own account, `svc-ansible-rw`, as
+the last to change it. If the extra commits
+aren't wanted, the model supports `output_store_mode: on_significant` as a
+variable, which ignores both header lines when deciding whether to commit.
+
+*A commit means the configuration's text changed, not necessarily its meaning.
+Read the diff before assuming someone reconfigured something.*
